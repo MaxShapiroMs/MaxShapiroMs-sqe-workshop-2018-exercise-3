@@ -5,7 +5,7 @@ describe('The javascript parser', () => {
     it('is parsing an empty function correctly', () => {
         assert.equal(
             JSON.stringify(symbolizer('function func(x,y){}','1,2')),
-            '\"function func(x,y){}\\n\"'
+            '\"st=>start: func\\n\"'
         );
     });
 });

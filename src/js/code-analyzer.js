@@ -101,33 +101,18 @@ function parseFor(data,shouldParse){
 }
 
 function parseIf(data,shouldParse){
-    let colorFlag=determineColor(parseDataType[data.test.type](data.test));
+    //let colorFlag=determineColor(parseDataType[data.test.type](data.test));
     let consequentDepth;
     let alternateDepth;
     consequentDepth = parseDataType[data.consequent.type](data.consequent,false);
     alternateDepth = parseDataType[data.alternate.type](data.alternate,false);
     if(shouldParse)
         token.push({'Line':data.loc.start.line , 'Type': data.type , 'Name': '' , 'Condition':parseDataType[data.test.type](data.test) , 'Value':'', 'consequentDepth':consequentDepth,'alternameDepth':alternateDepth});
-    if(colorFlag=='Green'){
-        return parseDataType[data.consequent.type](data.consequent,shouldParse)+1;
-    }
+    //if(colorFlag=='Green'){
+    parseDataType[data.consequent.type](data.consequent,shouldParse)+1;
+    //}
     if(data.alternate!=null)
         return parseDataType[data.alternate.type](data.alternate,shouldParse)+1;
-}
-function determineColor(condition) {
-    let temp;
-    for (let key in global_table)
-    {
-        temp=condition.replace(key,global_table[key]);
-        if(temp.indexOf(',')!=-1)
-            condition=condition.replace(key,getArrayIndex(key,condition[condition.indexOf(key)+2]));
-        else
-            condition=temp;
-    }
-    if(eval(condition))
-        return 'Green';
-    else
-        return 'Red';
 }
 function parseUpdate(data){
     return data;

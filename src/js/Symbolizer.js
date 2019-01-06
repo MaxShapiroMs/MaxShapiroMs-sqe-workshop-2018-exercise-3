@@ -7,19 +7,123 @@ var originalCode;
 var passedLine;
 var ifGreenLines=[];
 var ifRedLines=[];
+var graphString='';
+var graphParameters=[];
+var countOps=0;
+var assignmentCount=0;
+var realGraphParameters=[];
+var functionName='';
 function symbolizer(code,input){
-    inputVector=eval('['+input+']');
-    global_table=[];
-    symbolizedCode='';
-    token=new Array();
-    inputIndex=[];
-    funcStart=-1;
-    funcEnd=-1;
+    inputVector=eval('['+input+']');global_table=[];symbolizedCode='';token=new Array();inputIndex=[];funcStart=-1;funcEnd=-1;
     passedLine=0;
     originalCode=code;
     let parsedCode = esprima.parseScript(code,{ loc : true });
     parseData(parsedCode.body,true);
-    return token;
+    filterGraphParams(graphParameters);
+    createGraphText(realGraphParameters);
+    return graphString;
+}
+function filterGraphParams(graph) {
+    let tempGraph = [];
+    for (let op in graph) {
+        if (typeof graph[op].Parent !== 'undefined')
+            tempGraph.push(graph[op]);
+    }
+    realGraphParameters.push({'Parent':'start','Name':'st','Value':functionName,'Operation':'start'});
+    for (let op in tempGraph)
+    {
+        if(checkAndAddItem(tempGraph[op],tempGraph)!=false)
+            realGraphParameters.push(tempGraph[op]);
+    }
+
+}
+function createGraphText(graph){
+    initGraphVars(graph);
+    connectGraphVars(graph);
+}
+function initGraphVars(graph){
+    for(let op in graph){
+        graphString=graphString+graph[op].Name+'=>'+graph[op].Operation +': '+graph[op].Value+'\n';
+    }
+}
+function connectGraphVars(graph){
+    let previousOps=[];let currentOp='';
+    for(let op in graph){
+        if(graph[op].Parent!='start' && !checkIfInArray(graph[op],previousOps)) {
+            currentOp = graph[op].Parent;
+            if(checkIfIfExp(currentOp)){connectIfGraphVar(currentOp,graph); previousOps.push(currentOp);}
+            else{connectSimpleGraphVar(currentOp,graph);
+                previousOps.push(currentOp);}
+        }
+    }
+}
+function connectIfGraphVar(currentOp,graph){
+    for(let op in graph){
+        if(graph[op].Name==currentOp) {
+            checkIfHasCondition(graph[op]);
+            graphString += '\n';
+            return;
+        }
+    }
+    graphString+='\n';
+
+}
+function checkIfIfExp(currentop){
+    if(currentop.charAt(0)=='o' && currentop.charAt(1)=='p'){
+        return true;
+    }
+    else return false;
+}
+function connectSimpleGraphVar(currentOp,graph){
+    let currentName='';
+    for(let op in graph){
+        if(graph[op].Parent==currentOp && graph[op].Name!='end'){
+            connectSimpleGraphVar1(currentOp,graph,op,currentName);
+            currentName=graph[op].Name;
+        }
+    }
+    graphString+='\n';
+}
+function connectSimpleGraphVar1(currentOp,graph,op,currentName){
+    if(currentName!='') {
+        graphString = graphString + '->' + graph[op].Name;
+    }else {
+        graphString = graphString + currentOp + '->' + graph[op].Name;
+    }
+
+}
+function checkIfHasCondition(op){
+    if(typeof op.connectTrue!=='undefined'){
+        graphString+=op.Name+'(true)->'+op.connectTrue.Name+'\n';
+        if(typeof op.connectFalse!=='undefined')
+            graphString+=op.Name+'(false)->'+op.connectFalse.Name+'\n';
+        else
+            graphString+=op.Name+'(false)->end'+'\n';
+        return true;
+    }
+    else if(typeof op.connectFalse!=='undefined'){
+        graphString+=op.Name+'(true)->end'+'\n';
+        graphString+=op.Name+'(false)->'+op.connectFalse.Name+'\n';
+        return true;
+    }
+    else
+        return false;
+
+}
+function checkIfInArray(op,previousArray){
+    for(let i in previousArray)
+    {
+        if(previousArray[i]==op.Parent)
+            return true;
+    }
+    return false;
+}
+function checkAndAddItem(item,graph){
+    for(let op in graph){
+        if(item.Parent==graph[op].Name)
+            return true;
+    }
+    return false;
 }
 function getGreenLines()
 {
@@ -31,7 +135,6 @@ function getRedLines()
 }
 function getInputAtIndex(index)
 {
-
     return inputVector[index];
 }
 /*function convertArray(input,i,count)
@@ -96,9 +199,11 @@ function parseFunction(data,toToken){
         global_table[data.params[i].name]=getInputAtIndex(i);
         inputIndex[data.params[i].name]=i;
     }
-    blockExpression(data.body,toToken);
+    graphParameters.push({'Parent':'start','Name':'st','Value':data.id.name});
+    functionName=data.id.name;
+    blockExpression(data.body,toToken,'st');
 }
-function parseVariable(data,toToken){
+function parseVariable(data,toToken,parent){
     for(let i=0;i<data.declarations.length;i++)
     {
 
@@ -113,22 +218,30 @@ function parseVariable(data,toToken){
                 });
         }
         else{
-            parseVariableExpression(data.declarations[i],toToken);
+            parseVariableExpression(data.declarations[i],toToken,parent);
         }
 
     }
 }
-function parseVariableExpression(data,toToken){
+function parseVariableExpression(data,toToken,parent){
+    let variableJson={};
+    variableJson.Parent=parent;
+    variableJson.Operation='operation';
     if(data.init.raw!=null && toToken){
         token.push({'Line':data.loc.start.line , 'Type': 'VariableDeclaration' , 'Name': data.id.name , 'Condition':'' , 'Value':data.init.raw});
         addToRelevantTable(data,data.init.raw,toToken);
+        variableJson.Name=data.id.name;
+        variableJson.Value=data.init.raw;
     }
     else{
         if(toToken){
-            token.push({'Line':data.loc.start.line , 'Type': 'VariableDeclaration' , 'Name': data.id.name , 'Condition':'' , 'Value':parseBinaryExpression(data.init)});
-            addToRelevantTable(data,parseBinaryExpression(data.init),toToken);
+            token.push({'Line':data.loc.start.line , 'Type': 'VariableDeclaration' , 'Name': data.id.name , 'Condition':'' , 'Value':parseBinaryExpression(data.init,true)});
+            addToRelevantTable(data,parseBinaryExpression(data.init,true),toToken);
         }
+        variableJson.Name=data.id.name;
+        variableJson.Value=parseBinaryExpression(data.init,true);
     }
+    graphParameters.push(variableJson);
 }
 function addToRelevantTable(data,valueToAdd,toToken)
 {
@@ -141,10 +254,10 @@ function addToRelevantTable(data,valueToAdd,toToken)
     }
     symbolizedCode=symbolizedCode+currentLine.split('=')[0]+'='+valueToAdd+'\n';
 }
-function parseExpression(data){
-    parseDataType[data.expression.type](data.expression);
+function parseExpression(data,toToken,parent){
+    return parseDataType[data.expression.type](data.expression,toToken,parent);
 }
-function parseReturn(data,toToken){
+function parseReturn(data,toToken,parent){
     if(toToken) {
         token.push({
             'Line': data.loc.start.line,
@@ -154,7 +267,7 @@ function parseReturn(data,toToken){
             'Value': parseDataType[data.argument.type](data.argument)
         });
         symbolizedCode = symbolizedCode + 'return ' + parseDataType[data.argument.type](data.argument) + '\n';
-
+        graphParameters.push({'Name':'end','Parent':parent,'Value':'end','Operation':'end'});
         passedLine++;
     }
 }
@@ -170,48 +283,66 @@ function parseWhile(data,toToken){
     parseDataType[data.update.type](data.update);
     blockExpression(data.body);
 }*/
-function parseIf(data,toToken){
-    let count=0;
-    let colorFlag=determineColor(parseDataType[data.test.type](data.test));
-    //let ifIndexEnd=getIfEndIndex(originalCode,data.loc.start.line);
-    //symbolizedCode=symbolizedCode+getLine(originalCode,data.loc.start.line).substr(0,getLine(originalCode,data.loc.start.line).indexOf('(')+1)+parseDataType[data.test.type](data.test)+')'+getLine(originalCode,data.loc.start.line).substr(ifIndexEnd+1)+'\n';
+function parseIf(data,toToken,parent){
+    let count=0;let colorFlag=determineColor(parseDataType[data.test.type](data.test,true));let operation = 'op'+countOps;let operationJson={};countOps++;
     if(toToken)token.push({'Line':data.loc.start.line , 'Type': data.type , 'Name': '' , 'Condition':parseDataType[data.test.type](data.test) , 'Value':'','Color':colorFlag,'consequentDepth':parseDataType[data.consequent.type](data.consequent,false),'alternativeDepth':parseDataType[data.alternate.type](data.alternate,false)});
+    operationJson.Operation='condition';
+    operationJson.Parent=parent;
+    operationJson.Name=operation;
+    operationJson.Value=parseDataType[data.test.type](data.test);
     if(colorFlag=='Green'){
         ifGreenLines.push(data.loc.start.line);
-        count += parseDataType[data.consequent.type](data.consequent,toToken);}
+        let result = parseDataType[data.consequent.type](data.consequent,toToken,operation);
+        count += result.count;
+        operationJson.connectTrue=result.results[0].result.operatorToConnect;}
     else {
         ifRedLines.push(data.loc.start.line);
-        count += continueParsingWithoutTables(data.consequent, toToken);
-    }
-    return checkAlternate(data,colorFlag,toToken,count);
+        let result = continueParsingWithoutTables(data.consequent, toToken,operation);
+        count += result.count;
+        operationJson.connectTrue=result.operatorToConnect;}
+
+    return checkAlternate(data,colorFlag,toToken,count,operation,operationJson);
 }
-function checkAlternate(data,colorFlag,toToken,count){
+/*function getParameterByName(name){
+    for(let i=0; i<graphParameters.length;i++){
+        if(graphParameters[i].Name==name){
+            return graphParameters[i];
+        }
+    }
+}*/
+
+function checkAlternate(data,colorFlag,toToken,count,operation,operationJson){
     if(data.alternate!=null){
         //if(data.alternate.test==null)
         //symbolizedCode=symbolizedCode+getLine(originalCode,data.alternate.loc.start.line)+'\n';
-        if(colorFlag=='Green')
-            count += continueParsingWithoutTables(data.alternate,toToken);
-        else
-            count += parseDataType[data.alternate.type](data.alternate,toToken);
-        return count+1;
+        if(colorFlag=='Green') {
+            let result = continueParsingWithoutTables(data.alternate, toToken,operation);
+            count += result.count;
+            operationJson.connectFalse=result.operatorToConnect;
+        }else {
+            let result=parseDataType[data.alternate.type](data.alternate, toToken,operation);
+            count += result.count;
+            operationJson.connectFalse=result.operatorToConnect;
+        }
+        graphParameters.push(operationJson);
+        return {'count':count+1,'operatorToConnect':operationJson};
     }
 }
 /*function getIfEndIndex(code,lineNum){
     let line = getLine(code,lineNum);
-
     for(let i=line.length;i>0;i--)
         if(line[i]==')')
             return i;
 }*/
-function continueParsingWithoutTables(data,toToken){
+function continueParsingWithoutTables(data,toToken,parent){
     let tempLocal = copyTable(local_table);
     let tempGlobal = copyTable(global_table);
-    let count = parseDataType[data.type](data,toToken);
+    let result = parseDataType[data.type](data,toToken,parent);
     local_table=[];
     global_table=[];
     local_table=copyTable(tempLocal);
     global_table=copyTable(tempGlobal);
-    return count+1;
+    return {'count':result.results[0].result.count+1,'operatorToConnect':result.results[0].result.operatorToConnect};
 }
 function copyTable(table)
 {
@@ -221,7 +352,7 @@ function copyTable(table)
     return temp;
 }
 function determineColor(condition) {
-    let temp;
+    let temp=condition;
     for (let key in global_table)
     {
         temp=condition.replace(key,global_table[key]);
@@ -230,6 +361,7 @@ function determineColor(condition) {
         else
             condition=temp;
     }
+    //condition.replace(condition[0],parseIdentifierExpression(condition[0],true));
     if(eval(condition))
         return 'Green';
     else
@@ -252,28 +384,37 @@ function getArrayIndex(key,index){
 function parseUpdate(data){
     return data;
 }
-function parseAssignment(data,toToken){
-    if(toToken)
+function parseAssignment(data,toToken,parent){
+    let assignment='ass'+assignmentCount;let assignmentJson={};
+    assignmentCount++;
+    if(toToken){
         token.push({'Line':data.loc.start.line, 'Type':data.type,'Name':data.left.name,'Condition':'', 'Value':parseDataType[data.right.type](data.right)});
-    symbolizedCode=symbolizedCode+data.left.name+'='+parseDataType[data.right.type](data.right)+'\n';
+    }
+    assignmentJson.Operation='operation';
+    assignmentJson.Parent=parent;
+    assignmentJson.Name=assignment;
+    assignmentJson.Value=data.left.name+'='+parseDataType[data.right.type](data.right);
+
+    //symbolizedCode=symbolizedCode+data.left.name+'='+parseDataType[data.right.type](data.right)+'\n';
     passedLine++;
-    if(data.left.name in local_table)
-        local_table[data.left.name]=parseDataType[data.right.type](data.right);
+    //if(data.left.name in local_table)
+    //    local_table[data.left.name]=parseDataType[data.right.type](data.right);
     if(data.left.name in global_table)
         global_table[data.left.name]=parseDataType[data.right.type](data.right);
-    return 1;
+    graphParameters.push(assignmentJson);
+    return {'count':1,'operatorToConnect':assignmentJson};
 }
 ////
-function parseBinaryExpression(data){
+function parseBinaryExpression(data,isIfState){
     if(data.left==null)
         return;
     if(bracesTester(data.left.type))
     {
-        return parseDataType[data.left.type](data.left)+data.operator+parseDataType[data.right.type](data.right);
+        return parseDataType[data.left.type](data.left,isIfState)+data.operator+parseDataType[data.right.type](data.right,isIfState);
     }
     else
     {
-        return parseDataType[data.left.type](data.left)+' '+data.operator+' ('+parseDataType[data.right.type](data.right)+')';
+        return parseDataType[data.left.type](data.left,isIfState)+' '+data.operator+' ('+parseDataType[data.right.type](data.right,isIfState)+')';
     }
 }
 function bracesTester(data){
@@ -292,14 +433,14 @@ function parseMemberExpression(data){
 }
 function parseLiteral(data){
     if(data.raw in local_table)
-        return local_table[data.raw];
+        return data.raw;
     else if(data.raw in global_table)
         return global_table[data.raw];
     else
         return data.raw;
 }
-function parseIdentifierExpression(data){
-    if(data.name in local_table){
+function parseIdentifierExpression(data,isIfState){
+    if(data.name in local_table && isIfState){
         return local_table[data.name];}
     //else if(data.name in global_table)
     //    return global_table[data.name]
@@ -309,13 +450,14 @@ function parseIdentifierExpression(data){
 function parseUnaryExpression(data){
     return '-'+parseDataType[data.argument.type](data.argument);
 }
-function blockExpression(data,toToken)
+function blockExpression(data,toToken,parent)
 {
+    let parseJson=[];
     for(let i=0;i<data.body.length;i++)
     {
-        parseDataType[data.body[i].type](data.body[i],toToken);
+        parseJson.push({'index':i,'result':parseDataType[data.body[i].type](data.body[i],toToken,parent)});
     }
-    return data.body.length;
+    return {'length':data.body.length,'results':parseJson};
 }
 
 export {symbolizer,getGreenLines,getRedLines};
