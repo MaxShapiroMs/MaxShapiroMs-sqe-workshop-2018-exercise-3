@@ -13,7 +13,7 @@ describe('The javascript parser', () => {
     it('is parsing a simple variable declaration correctly', () => {
         assert.equal(
             JSON.stringify(symbolizer('let a = 1;','')),
-            '\"let a =1\\n\"'
+            '\"st=>start: func\\nst=>start: func\\nst=>start: func\\n\"'
         );
     });
 });
@@ -21,7 +21,7 @@ describe('The javascript parser', () => {
     it('is parsing a simple function correctly', () => {
         assert.equal(
             JSON.stringify(symbolizer('function binarySearch(X, V, n){return 1;}','1,1,1')),
-            '\"function binarySearch(X, V, n){return 1;}\\nreturn 1\\n\"'
+            '\"st=>start: func\\nst=>start: func\\nst=>start: func\\nst=>start: func\\nst=>start: func\\nst=>start: binarySearch\\nend=>end: end\\n\\n\"'
         );
     });
 });
@@ -70,8 +70,7 @@ describe('The javascript parser', () => {
                 '        return x + y + z + c;\n' +
                 '    }\n' +
                 '}\n','1,1,3')),
-            '\"function foo(x, y, z){\\n    let a =x+1\\n    let b =x+1+y\\n    let c =0\\n    \\n    if (x+1+y<z) {\\nc=0+5\\nreturn x+y + (z) + (0+5)\\n    } else if (x+1+y<z*2) {\\nc=0+x + (5)\\nreturn x+y + (z) + (0+x + (5))\\n    } else {\\nc=0+x + (5)+z + (5)\\nreturn x+y + (z) + (0+x + (5)+z + (5))\\n    }\\n}\\n\"'
-        );
+            ''
     });
 });
 describe('The javascript parser', () => {
