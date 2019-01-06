@@ -1,0 +1,3 @@
+{"total": {"lines":{"total":139,"covered":129,"skipped":0,"pct":92.81},"statements":{"total":142,"covered":132,"skipped":0,"pct":92.96},"functions":{"total":28,"covered":26,"skipped":0,"pct":92.86},"branches":{"total":50,"covered":43,"skipped":0,"pct":86}}
+,"D:\\QA\\sqe-workshop-2018-sample-project-master\\src\\js\\Symbolizer.js": {"lines":{"total":139,"covered":129,"skipped":0,"pct":92.81},"functions":{"total":28,"covered":26,"skipped":0,"pct":92.86},"statements":{"total":142,"covered":132,"skipped":0,"pct":92.96},"branches":{"total":50,"covered":43,"skipped":0,"pct":86}}
+}
